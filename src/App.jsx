@@ -6,8 +6,8 @@
    localStorage so the demo works without any backend service.
 ================================================================ */
 
-import React, { useState, useEffect } from 'react'
-import { Routes, Route, Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
+import React, { useState } from 'react'
+import { Routes, Route, Outlet, Link, useNavigate, useLocation, Navigate } from 'react-router-dom'
 
 import './App.css'
 import './Nav.css'
@@ -150,14 +150,17 @@ function validatePaymentForm(data) {
 // NAV COMPONENT
 // ================================================================
 function Nav() {
-  const [activeNav, setActiveNav] = useState('dashboard')
+  const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const handleMobileMenuToggle = () => setMobileMenuOpen(!mobileMenuOpen)
-  const handleNavClick = (navItem) => {
-    setActiveNav(navItem)
-    setMobileMenuOpen(false)
-  }
+  const handleNavClick = () => setMobileMenuOpen(false)
+
+  const activeNav = location.pathname === '/ViewRegisteredUsers'
+    ? 'register'
+    : location.pathname === '/PaymentHistory'
+      ? 'payment'
+      : 'dashboard'
 
   return (
     <div className="Sidebar-Wrapper">
@@ -177,19 +180,19 @@ function Nav() {
           <div className="Nav-Top">
             <Link to="/Details"
               className={`Dashboared-Parent ${activeNav === 'dashboard' ? 'active' : ''}`}
-              onClick={() => handleNavClick('dashboard')}>
+              onClick={handleNavClick}>
               <i className='fa-solid fa-gauge'></i>
               <div className='Dashboard-Child'>Dashboard</div>
             </Link>
             <Link to="/ViewRegisteredUsers"
               className={`View-Register-Parent ${activeNav === 'register' ? 'active' : ''}`}
-              onClick={() => handleNavClick('register')}>
+              onClick={handleNavClick}>
               <i className='fa-solid fa-people-group'></i>
               <div className='view-register-child'>View Registered Users</div>
             </Link>
             <Link to="/PaymentHistory"
               className={`Payment-History-Parent ${activeNav === 'payment' ? 'active' : ''}`}
-              onClick={() => handleNavClick('payment')}>
+              onClick={handleNavClick}>
               <i className='fa-solid fa-clock-rotate-left'></i>
               <div className='Payment-History-Child'>Payment History</div>
             </Link>
@@ -209,9 +212,8 @@ function Nav() {
 // ================================================================
 function Details() {
   const navigate = useNavigate()
-  const [users, setUsers] = useState([])
-  const [payments, setPayments] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [users, setUsers] = useState(() => api.getUsers())
+  const [payments, setPayments] = useState(() => api.getPayments())
   const [error, setError] = useState("")
   const [expiredata, setExpiredata] = useState([])
   const [expirefilterdata, setExpirefilterdata] = useState(false)
@@ -219,21 +221,11 @@ function Details() {
 
   const handleNewRegister = () => navigate('/Register')
 
-  const loadData = async () => {
-    setLoading(true)
+  const refreshData = () => {
+    setUsers(api.getUsers())
+    setPayments(api.getPayments())
     setError("")
-    try {
-      const [usersData, paymentsData] = await Promise.all([api.getUsers(), api.getPayments()])
-      setUsers(usersData)
-      setPayments(paymentsData)
-    } catch (err) {
-      setError(err.message || "Failed to load data from server. Is the backend running?")
-    } finally {
-      setLoading(false)
-    }
   }
-
-  useEffect(() => { loadData() }, [])
 
   const handleexpire = (expireType) => {
     let filtered = []
@@ -259,7 +251,7 @@ function Details() {
     try {
       await api.deleteUser(id)
       alert("User deleted successfully")
-      await loadData()
+      refreshData()
     } catch (err) {
       alert(err.message || "Failed to delete user. Please try again.")
     } finally {
@@ -289,7 +281,6 @@ function Details() {
       )}
 
       {error && <p style={{ color: '#dc2626', fontSize: '13px' }}>{error}</p>}
-      {loading && <p style={{ fontSize: '13px' }}>Loading...</p>}
 
       <div className="Details-table-wrapper">
         <table className="Details-table">
@@ -455,8 +446,7 @@ function Register() {
 // ================================================================
 function Viewregister() {
   const navigate = useNavigate()
-  const [users, setUsers] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [users, setUsers] = useState(() => api.getUsers())
   const [error, setError] = useState("")
   const [deletingId, setDeletingId] = useState(null)
 
@@ -464,19 +454,10 @@ function Viewregister() {
   const [sortBy, setSortBy] = useState("name")
   const [sortOrder, setSortOrder] = useState("asc")
 
-  const loadUsers = async () => {
-    setLoading(true)
+  const refreshUsers = () => {
+    setUsers(api.getUsers())
     setError("")
-    try {
-      setUsers(await api.getUsers())
-    } catch (err) {
-      setError(err.message || "Failed to load users from server. Is the backend running?")
-    } finally {
-      setLoading(false)
-    }
   }
-
-  useEffect(() => { loadUsers() }, [])
 
   const handleEdit = (user) => {
     navigate('/Register', { state: { editUser: user } })
@@ -488,7 +469,7 @@ function Viewregister() {
     try {
       await api.deleteUser(id)
       alert("User deleted successfully")
-      await loadUsers()
+      refreshUsers()
     } catch (err) {
       alert(err.message || "Failed to delete user. Please try again.")
     } finally {
@@ -542,7 +523,6 @@ function Viewregister() {
       </div>
 
       {error && <p style={{ color: '#dc2626', fontSize: '13px' }}>{error}</p>}
-      {loading && <p style={{ fontSize: '13px' }}>Loading...</p>}
 
       <table className="Details-table">
         <thead className="Details-thead">
@@ -571,11 +551,9 @@ function Viewregister() {
               </tr>
             ))
           ) : (
-            !loading && (
-              <tr className="Details-tr">
-                <td colSpan="8" style={{ textAlign: 'center', padding: '20px' }}>No registered users yet</td>
-              </tr>
-            )
+            <tr className="Details-tr">
+              <td colSpan="8" style={{ textAlign: 'center', padding: '20px' }}>No registered users yet</td>
+            </tr>
           )}
         </tbody>
       </table>
@@ -587,8 +565,7 @@ function Viewregister() {
 // PAYMENT HISTORY COMPONENT
 // ================================================================
 function Paymenthistory() {
-  const [payments, setPayments] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [payments, setPayments] = useState(() => api.getPayments())
   const [error, setError] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
@@ -598,19 +575,10 @@ function Paymenthistory() {
     member: '', amount: '', date: '', status: 'Pending', method: '', transactionId: ''
   })
 
-  const loadPayments = async () => {
-    setLoading(true)
+  const refreshPayments = () => {
+    setPayments(api.getPayments())
     setError("")
-    try {
-      setPayments(await api.getPayments())
-    } catch (err) {
-      setError(err.message || "Failed to load payments from server. Is the backend running?")
-    } finally {
-      setLoading(false)
-    }
   }
-
-  useEffect(() => { loadPayments() }, [])
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -648,7 +616,7 @@ function Paymenthistory() {
       await api.deletePayment(id)
       alert("Payment deleted successfully")
       if (editingId === id) resetForm()
-      await loadPayments()
+      refreshPayments()
     } catch (err) {
       alert(err.message || "Failed to delete payment. Please try again.")
     } finally {
@@ -685,7 +653,7 @@ function Paymenthistory() {
         alert("Payment added successfully")
       }
       resetForm()
-      await loadPayments()
+      refreshPayments()
     } catch (err) {
       setError(err.message || "Failed to save payment. Please try again.")
     } finally {
@@ -734,7 +702,6 @@ function Paymenthistory() {
       </form>
 
       {error && <p style={{ color: '#dc2626', fontSize: '13px' }}>{error}</p>}
-      {loading && <p style={{ fontSize: '13px' }}>Loading...</p>}
 
       <div className="payment-stats">
         <div className="stat-card">
@@ -818,12 +785,14 @@ function Layout() {
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<Layout />}>
+      <Route element={<Layout />}>
+        <Route index element={<Navigate to="/Details" replace />} />
         <Route path="/Details" element={<Details />} />
         <Route path="/Register" element={<Register />} />
         <Route path="/ViewRegisteredUsers" element={<Viewregister />} />
         <Route path="/PaymentHistory" element={<Paymenthistory />} />
       </Route>
+      <Route path="*" element={<Navigate to="/Details" replace />} />
     </Routes>
   )
 }
