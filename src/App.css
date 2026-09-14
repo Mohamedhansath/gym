@@ -4,7 +4,7 @@
   height: auto;
   margin: 0;
   padding: 0;
-  background: linear-gradient(135deg, #f0f4f8 0%, #f5f7fa 100%);
+  background: linear-gradient(135deg, #f5efff 0%, #f2ebff 100%);
 }
 
 .app-layout {
@@ -20,7 +20,7 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  background: linear-gradient(135deg, #f0f4f8 0%, #faf8f3 100%);
+  background: linear-gradient(135deg, #f4ecff 0%, #f9f5ff 100%);
   padding: 20px;
   width: 100%;
   height: auto;

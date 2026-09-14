@@ -1,15 +1,9 @@
 /* ================================================================
-   App.jsx - single-file frontend
+   App.jsx - frontend-only gym management demo
 
    Defines Nav, Details (dashboard), Register, Viewregister, and
-   Paymenthistory, plus routing. All data is read/written through the
-   FastAPI backend (see api.* calls below) - nothing is stored in
-   localStorage.
-
-   The old per-component files (Nav.jsx, Details.jsx, Register.jsx,
-   Viewregister.jsx, Paymenthistory.jsx) and basic-style.css have been
-   removed: they were dead code left over from an earlier, localStorage-
-   based version and were never imported by main.jsx.
+   Paymenthistory, plus routing. All data is persisted in browser
+   localStorage so the demo works without any backend service.
 ================================================================ */
 
 import React, { useState, useEffect } from 'react'
@@ -22,62 +16,97 @@ import './Register.css'
 import './Viewregister.css'
 import './Paymenthistory.css'
 
-// ----------------------------------------------------------------
-// API BASE - read from Vite env (.env / .env.production), falling back
-// to localhost:8000 for local development. This always has to be a
-// URL the *browser* can reach (the frontend runs client-side), so even
-// inside Docker it should point at the backend's published host port,
-// never at a Docker service name like "backend".
-// ----------------------------------------------------------------
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000/api"
+const STORAGE_KEYS = {
+  users: 'users',
+  payments: 'payments',
+}
 
-async function handleResponse(res) {
-  if (!res.ok) {
-    let message = "Request failed"
-    try {
-      const data = await res.json()
-      message = data.detail || message
-    } catch (e) { /* ignore */ }
-    throw new Error(message)
+const SAMPLE_USERS = [
+  { id: 1, name: 'H. Mohamed Hansath', phone: '9876543210', joiningdate: '2025-08-10', expiredwithin: 2, expired: '2026-09-16' },
+  { id: 2, name: 'Ayesha Rahman', phone: '9123456780', joiningdate: '2025-07-22', expiredwithin: 0, expired: '2026-09-14' },
+  { id: 3, name: 'Karthik Iyer', phone: '9988776655', joiningdate: '2025-07-30', expiredwithin: 5, expired: '2026-09-20' },
+  { id: 4, name: 'Riya Nair', phone: '9765432109', joiningdate: '2025-08-18', expiredwithin: 1, expired: '2026-09-15' },
+  { id: 5, name: 'Nithin Kumar', phone: '9345678901', joiningdate: '2025-08-05', expiredwithin: 3, expired: '2026-09-17' },
+  { id: 6, name: 'Priya S', phone: '9098765432', joiningdate: '2025-06-12', expiredwithin: 0, expired: '2026-09-12' },
+  { id: 7, name: 'Muthu Lakshmi', phone: '9898989898', joiningdate: '2025-05-28', expiredwithin: 7, expired: '2026-09-21' },
+  { id: 8, name: 'Anjali Menon', phone: '9812345678', joiningdate: '2025-08-27', expiredwithin: 2, expired: '2026-09-16' },
+  { id: 9, name: 'Vignesh Rao', phone: '9654321890', joiningdate: '2025-07-04', expiredwithin: 4, expired: '2026-09-18' },
+  { id: 10, name: 'Sneha Joseph', phone: '9789012345', joiningdate: '2025-08-15', expiredwithin: 6, expired: '2026-09-20' },
+]
+
+const SAMPLE_PAYMENTS = [
+  { id: 1, member: 'H. Mohamed Hansath', amount: '₹1,200', date: '2026-08-28', status: 'Completed', method: 'UPI', transaction_id: 'TXN-1001' },
+  { id: 2, member: 'Ayesha Rahman', amount: '₹1,500', date: '2026-08-30', status: 'Pending', method: 'Cash', transaction_id: 'TXN-1002' },
+  { id: 3, member: 'Karthik Iyer', amount: '₹2,000', date: '2026-08-27', status: 'Completed', method: 'Card', transaction_id: 'TXN-1003' },
+  { id: 4, member: 'Riya Nair', amount: '₹1,350', date: '2026-08-29', status: 'Completed', method: 'UPI', transaction_id: 'TXN-1004' },
+  { id: 5, member: 'Nithin Kumar', amount: '₹1,800', date: '2026-08-25', status: 'Failed', method: 'Bank Transfer', transaction_id: 'TXN-1005' },
+  { id: 6, member: 'Priya S', amount: '₹999', date: '2026-08-26', status: 'Completed', method: 'UPI', transaction_id: 'TXN-1006' },
+  { id: 7, member: 'Muthu Lakshmi', amount: '₹2,250', date: '2026-08-31', status: 'Pending', method: 'Cash', transaction_id: 'TXN-1007' },
+  { id: 8, member: 'Anjali Menon', amount: '₹1,100', date: '2026-08-24', status: 'Completed', method: 'Card', transaction_id: 'TXN-1008' },
+  { id: 9, member: 'Vignesh Rao', amount: '₹1,650', date: '2026-08-22', status: 'Completed', method: 'UPI', transaction_id: 'TXN-1009' },
+  { id: 10, member: 'Sneha Joseph', amount: '₹1,450', date: '2026-08-23', status: 'Completed', method: 'Bank Transfer', transaction_id: 'TXN-1010' },
+]
+
+function readFromStorage(key, fallback) {
+  const raw = localStorage.getItem(key)
+
+  if (raw === null) {
+    localStorage.setItem(key, JSON.stringify(fallback))
+    return fallback
   }
-  return res.json()
+
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : fallback
+  } catch {
+    localStorage.setItem(key, JSON.stringify(fallback))
+    return fallback
+  }
+}
+
+function nextId(list) {
+  return list.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1
 }
 
 const api = {
-  getUsers: async () => handleResponse(await fetch(`${API_BASE}/users`)),
-  createUser: async (user) => handleResponse(await fetch(`${API_BASE}/users`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(user),
-  })),
-  updateUser: async (id, user) => handleResponse(await fetch(`${API_BASE}/users/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(user),
-  })),
-  deleteUser: async (id) =>
-    handleResponse(
-      await fetch(`${API_BASE}/users/${id}`, {
-        method: "DELETE",
-      })
-    ),
-  getPayments: async () => handleResponse(await fetch(`${API_BASE}/payments`)),
-  createPayment: async (payment) => handleResponse(await fetch(`${API_BASE}/payments`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payment),
-  })),
-  updatePayment: async (id, payment) => handleResponse(await fetch(`${API_BASE}/payments/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payment),
-  })),
-  deletePayment: async (id) =>
-    handleResponse(
-      await fetch(`${API_BASE}/payments/${id}`, {
-        method: "DELETE",
-      })
-    ),
+  getUsers: () => readFromStorage(STORAGE_KEYS.users, SAMPLE_USERS),
+  createUser: (user) => {
+    const users = api.getUsers()
+    const newUser = { ...user, id: nextId(users) }
+    localStorage.setItem(STORAGE_KEYS.users, JSON.stringify([...users, newUser]))
+    return newUser
+  },
+  updateUser: (id, user) => {
+    const users = api.getUsers()
+    const updatedUsers = users.map((item) => (item.id === id ? { ...item, ...user, id } : item))
+    localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(updatedUsers))
+    return updatedUsers
+  },
+  deleteUser: (id) => {
+    const users = api.getUsers()
+    const filtered = users.filter((item) => item.id !== id)
+    localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(filtered))
+    return filtered
+  },
+  getPayments: () => readFromStorage(STORAGE_KEYS.payments, SAMPLE_PAYMENTS),
+  createPayment: (payment) => {
+    const payments = api.getPayments()
+    const newPayment = { ...payment, id: nextId(payments) }
+    localStorage.setItem(STORAGE_KEYS.payments, JSON.stringify([...payments, newPayment]))
+    return newPayment
+  },
+  updatePayment: (id, payment) => {
+    const payments = api.getPayments()
+    const updatedPayments = payments.map((item) => (item.id === id ? { ...item, ...payment, id } : item))
+    localStorage.setItem(STORAGE_KEYS.payments, JSON.stringify(updatedPayments))
+    return updatedPayments
+  },
+  deletePayment: (id) => {
+    const payments = api.getPayments()
+    const filtered = payments.filter((item) => item.id !== id)
+    localStorage.setItem(STORAGE_KEYS.payments, JSON.stringify(filtered))
+    return filtered
+  },
 }
 
 // ----------------------------------------------------------------
@@ -743,23 +772,25 @@ function Paymenthistory() {
           <tbody className="payment-tbody">
             {payments.map((p, idx) => (
               <tr className="payment-tr" key={p.id ?? idx}>
-                <td>{idx + 1}</td>
-                <td>
+                <td data-label="ID">{idx + 1}</td>
+                <td data-label="Member Name">
                   <div className="member-info">
                     <i className="fa-regular fa-user"></i>
                     <span>{p.member}</span>
                   </div>
                 </td>
-                <td><span className="amount">{p.amount}</span></td>
-                <td>{p.date}</td>
-                <td><span className={`status-badge status-${(p.status || '').toLowerCase()}`}>{p.status}</span></td>
-                <td>{p.method}</td>
-                <td className="transaction-id">{p.transaction_id}</td>
-                <td>
-                  <button type="button" onClick={() => handleEditClick(p)} disabled={deletingId === p.id}>Edit</button>{' '}
-                  <button type="button" onClick={() => handleDeletePayment(p.id)} disabled={deletingId === p.id}>
-                    {deletingId === p.id ? "Deleting..." : "Delete"}
-                  </button>
+                <td data-label="Amount"><span className="amount">{p.amount}</span></td>
+                <td data-label="Date">{p.date}</td>
+                <td data-label="Status"><span className={`status-badge status-${(p.status || '').toLowerCase()}`}>{p.status}</span></td>
+                <td data-label="Method">{p.method}</td>
+                <td data-label="Transaction ID" className="transaction-id">{p.transaction_id}</td>
+                <td data-label="Actions">
+                  <div className="payment-row-actions">
+                    <button type="button" onClick={() => handleEditClick(p)} disabled={deletingId === p.id}>Edit</button>{' '}
+                    <button type="button" onClick={() => handleDeletePayment(p.id)} disabled={deletingId === p.id}>
+                      {deletingId === p.id ? "Deleting..." : "Delete"}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

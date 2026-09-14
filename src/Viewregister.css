@@ -1,11 +1,11 @@
 :root {
-  --primary-bg: #f5f7fa;
-  --secondary-bg: #eef2f7;
-  --accent-color: #1e3a8a;
+  --primary-bg: #f5efff;
+  --secondary-bg: #f0e8ff;
+  --accent-color: #7c3aed;
   --text-muted: #6b7280;
-  --text-light: #1f2937;
-  --danger-color: #dc2626;
-  --hover-bg: rgba(30, 58, 138, 0.06);
+  --text-light: #2b174a;
+  --danger-color: #f87171;
+  --hover-bg: rgba(124, 58, 237, 0.08);
 }
 
 * {
